@@ -1,0 +1,17 @@
+{
+    "compilerOptions": {
+        "allowJs": true,
+        "experimentalDecorators": false,
+        "esModuleInterop": true,
+        "module": "commonjs",
+        "moduleResolution": "Node",
+        "noImplicitAny": false,
+        "removeComments": false,
+        "sourceMap": true,
+        "target": "es5"
+    },
+    "exclude": [
+        "node_modules"
+    ]
+
+}
