@@ -2,6 +2,9 @@ import {Promise} from "es6-promise";
 import FontFaceObserver from "FontFaceObserver";
 import MobileDetect from "mobile-detect";
 
+import {Grid} from "./Grid";
+import {Input} from "./Input";
+
 export class Game {
 
     private _parentContainer: any; // Parent HTML element of the game canvas
@@ -16,11 +19,17 @@ export class Game {
     private _resizeDelay: number = 2;
     private _resizeDelayTween: TWEEN.Tween;
 
-    private _useMobileInputEvents: boolean = false;
+    private _input: Input;
     private _width: number = 0;
     private _height: number = 0;
 
     private _textures: any;
+
+    private _wholeGameContainer: PIXI.Container;
+    private _nativeWidth: number = 720;
+    private _nativeHeight: number = 1280;
+
+    private _grid: Grid;
 
     public constructor () {
         this._resizeDelayTween = new TWEEN.Tween(this)
@@ -37,7 +46,7 @@ export class Game {
 
         let rendererOptions = {
             autoResize: true,
-            backgroundColor: 0x000000,
+            backgroundColor: 0x08001d,
             resolution: devicePixelRatio,
             //roundPixels: true
         };
@@ -58,15 +67,30 @@ export class Game {
         this._renderer.view.style['-webkit-tap-highlight-color'] = 'rgba(255, 255, 255, 0)';
 
         let mobileDetect = new MobileDetect(window.navigator.userAgent);
-        this._useMobileInputEvents = !!(mobileDetect.mobile() || mobileDetect.tablet());
+        this._input = new Input();
+        if ((mobileDetect.mobile() || mobileDetect.tablet())) {
+            document.addEventListener("touchstart", this.onTouchStart.bind(this), false);
+            document.addEventListener("touchmove", this.onTouchMove.bind(this), false);
+            document.addEventListener("touchend", this.onTouchEnd.bind(this), false);
+        }
+        else {
+            document.addEventListener("mousedown", this.onMouseDown.bind(this));
+            document.addEventListener("mouseup", this.onMouseUp.bind(this));
+            document.addEventListener("mousemove", this.onMouseMove.bind(this));
+        }
+
+        this._wholeGameContainer = new PIXI.Container();
+        this._stage.addChild(this._wholeGameContainer);
 
         this._loadingText = new PIXI.Text("Loading...", {
             fontFamily: "Sans-Serif",
-            fontSize: 24,
+            fontSize: 60,
             fill: 0xffffff
         });
         this._loadingText.anchor.set(0.5, 0.5);
-        this._stage.addChild(this._loadingText);
+        this._loadingText.x = this._nativeWidth / 2;
+        this._loadingText.y = this._nativeHeight / 2;
+        this._wholeGameContainer.addChild(this._loadingText);
 
         // Resize when the window changes size
         this._resizeCallback = this.resize.bind(this);
@@ -83,6 +107,52 @@ export class Game {
         );
 
         this.update();
+    }
+
+    private onTouchStart (e: any): void {
+        if (!this._input.pointerDown) {
+            this._input.pointerJustDown = true;
+        }
+        this._input.pointerDown = true;
+        this.setMouseXY(e.touches[0].clientX, e.touches[0].clientY);
+    }
+
+    private onTouchMove (e: any): void {
+        this.setMouseXY(e.touches[0].clientX, e.touches[0].clientY);
+    }
+
+    private onTouchEnd (e: any) {
+        this._input.pointerDown = false;
+    }
+
+    private onMouseDown (e: any): void {
+        if (!this._input.pointerDown) {
+            this._input.pointerJustDown = true;
+        }
+        this._input.pointerDown = true;
+    }
+
+    private onMouseUp (e: any): void {
+        this._input.pointerDown = false;
+    }
+
+    private onMouseMove (e: any): void {
+        this.setMouseXY(e.clientX, e.clientY);
+    }
+
+    private setMouseXY (x: number, y: number): void {
+        let canvas = this._renderer.view;
+        let scaleX = canvas.width / canvas.clientWidth;
+        let scaleY = canvas.height / canvas.clientHeight;
+        var mouseX = (x - canvas.clientLeft) * scaleX;
+        var mouseY = (y - canvas.clientTop) * scaleY;
+        this._input.pointerX = mouseX;
+        this._input.pointerY = mouseY;
+
+        this._input.pointerX -= this._wholeGameContainer.x;
+        this._input.pointerX /= this._wholeGameContainer.scale.x;
+        this._input.pointerY -= this._wholeGameContainer.y;
+        this._input.pointerY /= this._wholeGameContainer.scale.y;
     }
 
     private loadAssets (): Promise<any> {
@@ -140,16 +210,10 @@ export class Game {
     }
 
     private startGame (): void {
-        this._stage.removeChild(this._loadingText);
+        this._wholeGameContainer.removeChild(this._loadingText);
 
-        for (let i = 0; i < 10; ++i) {
-            for (let j = 0; j < 10; ++j) {
-                let gridCell = new PIXI.Sprite(this._textures["cell.png"]);
-                gridCell.x = j * 60;
-                gridCell.y = i * 60;
-                this._stage.addChild(gridCell);
-            }
-        }
+        this._grid = new Grid(this._wholeGameContainer, this._textures, this._nativeWidth, this._nativeHeight);
+        this._doneLoading = true;
     }
 
     private queueResize () {
@@ -175,11 +239,24 @@ export class Game {
 
             this._renderer.resize(newWidth, newHeight);
 
-            if (!this._doneLoading) {
-                this._loadingText.style.fontSize = (newHeight / 720) * 60 + 1;
-                this._loadingText.x = newWidth / 2;
-                this._loadingText.y = newHeight / 2;
+            let nativeAspectRatio = this._nativeWidth / this._nativeHeight;
+            let containerAspectRatio = this._width / this._height;
+
+            if (containerAspectRatio < nativeAspectRatio) {
+                let scale = this._width / this._nativeWidth;
+                this._wholeGameContainer.scale.set(scale, scale);
+                let heightDiff = this._height - (this._nativeHeight * scale);
+                this._wholeGameContainer.x = 0;
+                this._wholeGameContainer.y = heightDiff / 2;
             }
+            else {
+                let scale = this._height / this._nativeHeight;
+                this._wholeGameContainer.scale.set(scale, scale);
+                let widthDiff = this._width - (this._nativeWidth * scale);
+                this._wholeGameContainer.x = widthDiff / 2;
+                this._wholeGameContainer.y = 0;
+            }
+
         }
     }
 
@@ -191,6 +268,11 @@ export class Game {
             this.queueResize();
         }
         requestAnimationFrame(() => { this.update(); });
+
+        if (this._doneLoading) {
+            this._grid.update(this._input);
+        }
+        this._input.pointerJustDown = false;
         
         TWEEN.update();
         this._renderer.render(this._stage);
