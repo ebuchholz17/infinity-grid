@@ -20,6 +20,11 @@ export class Grid {
     private _mirrorBlocks: Block[]; 
     private _ghostBlock: Block;
 
+    private _draggingBlock: boolean = true;
+
+    private _selectableBlocks: Block[];
+    private _selectedIndex = -1;
+
     public constructor (parentContainer: PIXI.Container, textures: any, gameWidth: number, gameHeight: number) {
         this._container = new PIXI.Container();
         parentContainer.addChild(this._container);
@@ -63,6 +68,8 @@ export class Grid {
             this._mirrorBlocks.push(mirrorBlock);
         }
         this._mouseTrackingPiece.copyShapeAndTintIntoBlock(this._ghostBlock);
+
+        this._draggingBlock = false;
     }
 
     public update (input: Input) {
@@ -81,116 +88,135 @@ export class Grid {
             }
         }
 
-        this._mouseTrackingPiece.x = input.pointerX - this._container.x;
-        this._mouseTrackingPiece.y = input.pointerY - this._container.y;
+        if (input.pointerJustDown) { this._draggingBlock = true; }
 
-        for (let i = 0; i < 3; ++i) {
-            for (let j = 0; j < 3; ++j) {
-                let index = i * 3 + j;
-                if (index == 4) { continue; }
-                if (index > 4) { --index; }
-                let mirrorBlock = this._mirrorBlocks[index];
-                mirrorBlock.x = this._mouseTrackingPiece.x;
-                mirrorBlock.y = this._mouseTrackingPiece.y;
-                mirrorBlock.x += (j-1) * CellProps.CELL_DIM * CellProps.CELL_SIZE;
-                mirrorBlock.y += (i-1) * CellProps.CELL_DIM * CellProps.CELL_SIZE;
+        if (this._draggingBlock) {
+            this._mouseTrackingPiece.x = input.pointerX - this._container.x;
+            this._mouseTrackingPiece.y = input.pointerY - this._container.y;
+
+            for (let i = 0; i < 3; ++i) {
+                for (let j = 0; j < 3; ++j) {
+                    let index = i * 3 + j;
+                    if (index == 4) { continue; }
+                    if (index > 4) { --index; }
+                    let mirrorBlock = this._mirrorBlocks[index];
+                    mirrorBlock.alpha = 1;
+                    mirrorBlock.x = this._mouseTrackingPiece.x;
+                    mirrorBlock.y = this._mouseTrackingPiece.y;
+                    mirrorBlock.x += (j-1) * CellProps.CELL_DIM * CellProps.CELL_SIZE;
+                    mirrorBlock.y += (i-1) * CellProps.CELL_DIM * CellProps.CELL_SIZE;
+                }
             }
-        }
-        this._ghostBlock.x = this._mouseTrackingPiece.x;
-        this._ghostBlock.y = this._mouseTrackingPiece.y;
+            this._ghostBlock.x = this._mouseTrackingPiece.x;
+            this._ghostBlock.y = this._mouseTrackingPiece.y;
 
-        if (input.pointerJustDown) {
-            let gridCopy = [];
-            gridCopy.length = CellProps.CELL_DIM * CellProps.CELL_DIM;
+            let gridChanged = false;
+            if (!input.pointerDown) {
+                this._draggingBlock = false;
 
-            let cellRow = Math.floor((input.pointerY - this._container.y) / CellProps.CELL_SIZE);
-            let cellCol = Math.floor((input.pointerX - this._container.x) / CellProps.CELL_SIZE);
-            let doesntFit = false;
-            for (let i = -2; i <= 2; ++i) {
-                for (let j = -2; j <= 2; ++j) {
-                    let row = i+cellRow;
-                    if (row < 0) { row += CellProps.CELL_DIM; }
-                    row = row % CellProps.CELL_DIM;
+                let gridCopy = [];
+                gridCopy.length = CellProps.CELL_DIM * CellProps.CELL_DIM;
 
-                    let col = j+cellCol;
-                    if (col < 0) { col += CellProps.CELL_DIM; }
-                    col = col % CellProps.CELL_DIM;
+                let cellRow = Math.floor((input.pointerY - this._container.y) / CellProps.CELL_SIZE);
+                let cellCol = Math.floor((input.pointerX - this._container.x) / CellProps.CELL_SIZE);
+                let doesntFit = false;
+                for (let i = -2; i <= 2; ++i) {
+                    for (let j = -2; j <= 2; ++j) {
+                        let row = i+cellRow;
+                        if (row < 0) { row += CellProps.CELL_DIM; }
+                        row = row % CellProps.CELL_DIM;
 
-                    if (this._mouseTrackingPiece.filledAtRowCol(i+2, j+2)) {
-                        let cell = this._grid[row * CellProps.CELL_DIM + col];
-                        if (cell.filled) {
-                            doesntFit = true;
-                            break;
-                        }
-                        else {
-                            gridCopy[row * CellProps.CELL_DIM + col] = true;
+                        let col = j+cellCol;
+                        if (col < 0) { col += CellProps.CELL_DIM; }
+                        col = col % CellProps.CELL_DIM;
+
+                        if (this._mouseTrackingPiece.filledAtRowCol(i+2, j+2)) {
+                            let cell = this._grid[row * CellProps.CELL_DIM + col];
+                            if (cell.filled) {
+                                doesntFit = true;
+                                break;
+                            }
+                            else {
+                                gridCopy[row * CellProps.CELL_DIM + col] = true;
+                            }
                         }
                     }
+                    if (doesntFit) { break; }
                 }
-                if (doesntFit) { break; }
-            }
 
-            if (!doesntFit) {
-                for (let i = 0; i < CellProps.CELL_DIM; ++i) {
-                    for (let j = 0; j < CellProps.CELL_DIM; ++j) {
-                        if (gridCopy[i * CellProps.CELL_DIM + j]) {
+                if (!doesntFit) {
+                    for (let i = 0; i < CellProps.CELL_DIM; ++i) {
+                        for (let j = 0; j < CellProps.CELL_DIM; ++j) {
+                            if (gridCopy[i * CellProps.CELL_DIM + j]) {
+                                let cell = this._grid[i * CellProps.CELL_DIM + j];
+                                cell.filled = true;
+                                cell.tint = this._mouseTrackingPiece.tint;
+                                gridChanged = true;
+                            }
+                        }
+                    }
+                    this._mouseTrackingPiece.changeShape();
+                    this._mouseTrackingPiece.randomizeTint();
+                    for (let i = 0; i < 8; ++i){
+                        this._mouseTrackingPiece.copyShapeAndTintIntoBlock(this._mirrorBlocks[i]);
+                    }
+                    this._mouseTrackingPiece.copyShapeAndTintIntoBlock(this._ghostBlock);
+                }
+                if (gridChanged) {
+                    let gridCopy = [];
+                    gridCopy.length = CellProps.CELL_DIM * CellProps.CELL_DIM;
+                    for (let i = 0; i < CellProps.CELL_DIM; ++i) {
+                        let shouldClearRow = true;
+                        for (let j = 0; j < CellProps.CELL_DIM; ++j) {
                             let cell = this._grid[i * CellProps.CELL_DIM + j];
-                            cell.filled = true;
-                            cell.tint = this._mouseTrackingPiece.tint;
+                            if (!cell.filled) {
+                                shouldClearRow = false;
+                                break;
+                            }
+                        }
+                        if (shouldClearRow) {
+                            for (let j = 0; j < CellProps.CELL_DIM; ++j) {
+                                gridCopy[i * CellProps.CELL_DIM + j] = true;
+                            }
+                        }
+                    }
+                    for (let j = 0; j < CellProps.CELL_DIM; ++j) {
+                        let shouldClearCol = true;
+                        for (let i = 0; i < CellProps.CELL_DIM; ++i) {
+                            let cell = this._grid[i * CellProps.CELL_DIM + j];
+                            if (!cell.filled) {
+                                shouldClearCol = false;
+                                break;
+                            }
+                        }
+                        if (shouldClearCol) {
+                            for (let i = 0; i < CellProps.CELL_DIM; ++i) {
+                                gridCopy[i * CellProps.CELL_DIM + j] = true;
+                            }
+                        }
+                    }
+                    for (let i = 0; i < CellProps.CELL_DIM; ++i) {
+                        for (let j = 0; j < CellProps.CELL_DIM; ++j) {
+                            if (gridCopy[i * CellProps.CELL_DIM + j]) {
+                                let cell = this._grid[i * CellProps.CELL_DIM + j];
+                                cell.filled = false;
+                                cell.tint = 0xffffff;
+                            }
                         }
                     }
                 }
-                this._mouseTrackingPiece.changeShape();
-                this._mouseTrackingPiece.randomizeTint();
-                for (let i = 0; i < 8; ++i){
-                    this._mouseTrackingPiece.copyShapeAndTintIntoBlock(this._mirrorBlocks[i]);
-                }
-                this._mouseTrackingPiece.copyShapeAndTintIntoBlock(this._ghostBlock);
             }
         }
+        else {
+            this._mouseTrackingPiece.x = 300;
+            this._mouseTrackingPiece.y = 750;
+            this._ghostBlock.x = this._mouseTrackingPiece.x;
+            this._ghostBlock.y = this._mouseTrackingPiece.y;
 
-
-        let gridCopy = [];
-        gridCopy.length = CellProps.CELL_DIM * CellProps.CELL_DIM;
-        for (let i = 0; i < CellProps.CELL_DIM; ++i) {
-            let shouldClearRow = true;
-            for (let j = 0; j < CellProps.CELL_DIM; ++j) {
-                let cell = this._grid[i * CellProps.CELL_DIM + j];
-                if (!cell.filled) {
-                    shouldClearRow = false;
-                    break;
-                }
-            }
-            if (shouldClearRow) {
-                for (let j = 0; j < CellProps.CELL_DIM; ++j) {
-                    gridCopy[i * CellProps.CELL_DIM + j] = true;
-                }
-            }
-        }
-        for (let j = 0; j < CellProps.CELL_DIM; ++j) {
-            let shouldClearCol = true;
-            for (let i = 0; i < CellProps.CELL_DIM; ++i) {
-                let cell = this._grid[i * CellProps.CELL_DIM + j];
-                if (!cell.filled) {
-                    shouldClearCol = false;
-                    break;
-                }
-            }
-            if (shouldClearCol) {
-                for (let i = 0; i < CellProps.CELL_DIM; ++i) {
-                    gridCopy[i * CellProps.CELL_DIM + j] = true;
-                }
-            }
-        }
-        for (let i = 0; i < CellProps.CELL_DIM; ++i) {
-            for (let j = 0; j < CellProps.CELL_DIM; ++j) {
-                if (gridCopy[i * CellProps.CELL_DIM + j]) {
-                    let cell = this._grid[i * CellProps.CELL_DIM + j];
-                    cell.filled = false;
-                    cell.tint = 0xffffff;
-                }
+            for (let i = 0; i < 8; ++i) {
+                let mirrorBlock = this._mirrorBlocks[i];
+                mirrorBlock.alpha = 0;
             }
         }
     }
-
 }
