@@ -13,6 +13,7 @@ export class Game {
     private _stage: PIXI.Container;
     private _doneLoading: boolean = false;
     private _loadingText: PIXI.Text;
+    private _pixelRatio: number = 1;
 
     private _resourcePath: string = "";
 
@@ -20,6 +21,7 @@ export class Game {
     private _resizeDelayTween: TWEEN.Tween;
 
     private _input: Input;
+    private _mobileInputs: boolean = false;
     private _width: number = 0;
     private _height: number = 0;
 
@@ -30,6 +32,8 @@ export class Game {
     private _nativeHeight: number = 1280;
 
     private _grid: Grid;
+    private _scoreText: PIXI.Text;
+    private _score: number = 0;
 
     public constructor () {
         this._resizeDelayTween = new TWEEN.Tween(this)
@@ -44,10 +48,11 @@ export class Game {
         this._parentContainer = document.getElementById(elementID);
         this._parentContainer.style.display = "none";
 
+        this._pixelRatio = devicePixelRatio;
         let rendererOptions = {
             autoResize: true,
-            backgroundColor: 0x08001d,
-            resolution: devicePixelRatio,
+            backgroundColor: 0x241f4d,
+            resolution: this._pixelRatio,
             //roundPixels: true
         };
         this._renderer = PIXI.autoDetectRenderer(10, 10, rendererOptions);
@@ -68,7 +73,8 @@ export class Game {
 
         let mobileDetect = new MobileDetect(window.navigator.userAgent);
         this._input = new Input();
-        if ((mobileDetect.mobile() || mobileDetect.tablet())) {
+        this._mobileInputs = !!(mobileDetect.mobile() || mobileDetect.tablet());
+        if (this._mobileInputs) {
             document.addEventListener("touchstart", this.onTouchStart.bind(this), false);
             document.addEventListener("touchmove", this.onTouchMove.bind(this), false);
             document.addEventListener("touchend", this.onTouchEnd.bind(this), false);
@@ -83,7 +89,7 @@ export class Game {
         this._stage.addChild(this._wholeGameContainer);
 
         this._loadingText = new PIXI.Text("Loading...", {
-            fontFamily: "Sans-Serif",
+            fontFamily: "sans-serif",
             fontSize: 60,
             fill: 0xffffff
         });
@@ -142,8 +148,8 @@ export class Game {
 
     private setMouseXY (x: number, y: number): void {
         let canvas = this._renderer.view;
-        let scaleX = canvas.width / canvas.clientWidth;
-        let scaleY = canvas.height / canvas.clientHeight;
+        let scaleX = (canvas.width / this._pixelRatio) / canvas.clientWidth;
+        let scaleY = (canvas.height / this._pixelRatio) / canvas.clientHeight;
         var mouseX = (x - canvas.clientLeft) * scaleX;
         var mouseY = (y - canvas.clientTop) * scaleY;
         this._input.pointerX = mouseX;
@@ -153,6 +159,7 @@ export class Game {
         this._input.pointerX /= this._wholeGameContainer.scale.x;
         this._input.pointerY -= this._wholeGameContainer.y;
         this._input.pointerY /= this._wholeGameContainer.scale.y;
+        console.log(this._input.pointerX, this._input.pointerY);
     }
 
     private loadAssets (): Promise<any> {
@@ -212,7 +219,18 @@ export class Game {
     private startGame (): void {
         this._wholeGameContainer.removeChild(this._loadingText);
 
-        this._grid = new Grid(this._wholeGameContainer, this._textures, this._nativeWidth, this._nativeHeight);
+        let addFingerOffset = this._mobileInputs;
+        this._scoreText = new PIXI.Text("0", {
+            fontFamily: "sans-serif",
+            fontSize: 84,
+            fill: 0xffffff
+        });
+        this._scoreText.anchor.set(0.5, 0.5);
+        this._scoreText.x = this._nativeWidth / 2;
+        this._scoreText.y = 70;
+        this._wholeGameContainer.addChild(this._scoreText);
+        this._grid = new Grid(this._wholeGameContainer, this._textures, 
+                              this._nativeWidth, this._nativeHeight, addFingerOffset);
         this._doneLoading = true;
     }
 
@@ -270,7 +288,9 @@ export class Game {
         requestAnimationFrame(() => { this.update(); });
 
         if (this._doneLoading) {
-            this._grid.update(this._input);
+            this._score += this._grid.update(this._input);
+            this._scoreText.text = this._score.toString();
+
         }
         this._input.pointerJustDown = false;
         

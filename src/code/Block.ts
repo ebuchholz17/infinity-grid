@@ -49,9 +49,9 @@ export class Block {
     }
 
     public randomizeTint (): void {
-        this._tint = Math.random() * 0xdd + 
-                     ((Math.random() * 0xdd) << 8) + 
-                     ((Math.random() * 0xdd) << 16);
+        this._tint = (Math.floor(Math.random() * 2) * 0xcf + 0x30) + 
+                     ((Math.floor(Math.random() * 2) * 0xcf + 0x30) << 8) + 
+                     ((Math.floor(Math.random() * 2) * 0xcf + 0x30) << 16);
         for (let i = 0; i < this._cellSprites.length; ++i) {
             this._cellSprites[i].tint = this._tint;
         }
@@ -215,6 +215,20 @@ export class Block {
             block._cellSprites[i].tint = this._cellSprites[i].tint;
         }
 
+    }
+
+    public intersectsBoundingBox (x: number, y: number): boolean {
+        let minX = this._container.x - CellProps.CELL_SIZE * 2.5;
+        let maxX = this._container.x + CellProps.CELL_SIZE * 2.5;
+        let minY = this._container.y - CellProps.CELL_SIZE * 2.5;
+        let maxY = this._container.y + CellProps.CELL_SIZE * 2.5;
+
+        if (x >= minX && x < maxX && y >= minY && y < maxY) {
+            return true;
+        }
+        else {
+            return false;
+        }
     }
 
 }

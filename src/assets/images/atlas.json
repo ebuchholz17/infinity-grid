@@ -2,18 +2,18 @@
 
 "cell.png":
 {
-	"frame": {"x":2,"y":2,"w":72,"h":72},
+	"frame": {"x":2,"y":2,"w":84,"h":84},
 	"rotated": false,
 	"trimmed": false,
-	"spriteSourceSize": {"x":0,"y":0,"w":72,"h":72},
-	"sourceSize": {"w":72,"h":72}
+	"spriteSourceSize": {"x":0,"y":0,"w":84,"h":84},
+	"sourceSize": {"w":84,"h":84}
 }},
 "meta": {
 	"app": "https://www.codeandweb.com/texturepacker",
 	"version": "1.0",
 	"image": "atlas.png",
 	"format": "RGBA8888",
-	"size": {"w":76,"h":76},
+	"size": {"w":88,"h":88},
 	"scale": "1",
 	"smartupdate": "$TexturePacker:SmartUpdate:0d2c2ade19eba81f766dff3522516a3b:a6b7cae02aae26bc33ab4e03114a01a5:cbce6b53f0f49e0bf15173c25c41f876$"
 }

@@ -4,7 +4,7 @@ import {Block} from "./Block";
 
 class Cell {
     public filled: boolean = false;
-    public tint: number = 0xffffff;
+    public tint: number = 0x999999;
 };
 
 export class Grid {
@@ -20,12 +20,17 @@ export class Grid {
     private _mirrorBlocks: Block[]; 
     private _ghostBlock: Block;
 
+    private _addFingerOffset: boolean = false;
     private _draggingBlock: boolean = true;
+    private _dragOffsetX: number = 0;
+    private _dragOffsetY: number = 0;
 
     private _selectableBlocks: Block[];
     private _selectedIndex = -1;
 
-    public constructor (parentContainer: PIXI.Container, textures: any, gameWidth: number, gameHeight: number) {
+    public constructor (parentContainer: PIXI.Container, textures: any, 
+                        gameWidth: number, gameHeight: number, addFingerOffset: boolean) 
+    {
         this._container = new PIXI.Container();
         parentContainer.addChild(this._container);
 
@@ -70,29 +75,29 @@ export class Grid {
         this._mouseTrackingPiece.copyShapeAndTintIntoBlock(this._ghostBlock);
 
         this._draggingBlock = false;
+        this._addFingerOffset = addFingerOffset;
     }
 
-    public update (input: Input) {
+    public update (input: Input): number {
+        let scoreEarned = 0;
+        let lineMulitplier = 0;
         let gridLength = CellProps.CELL_DIM * CellProps.CELL_SIZE;
         this._container.x = (this._gameWidth / 2) - (gridLength / 2);
-        this._container.y = (this._gameHeight / 2) - (gridLength / 2);
+        this._container.y = (this._gameHeight / 2) - (gridLength / 2) - 150;
 
-        for (let i = 0; i < CellProps.CELL_DIM; ++i) {
-            for (let j = 0; j < CellProps.CELL_DIM; ++j) {
-                let cellSprite = this._cellSprites[i * CellProps.CELL_DIM + j];
-                cellSprite.x = j * CellProps.CELL_SIZE;
-                cellSprite.y = i * CellProps.CELL_SIZE;
-
-                let cell = this._grid[i * CellProps.CELL_DIM + j];
-                cellSprite.tint = cell.tint;
-            }
+        if (input.pointerJustDown && 
+            this._mouseTrackingPiece.intersectsBoundingBox(input.pointerX - this._container.x, 
+                                                           input.pointerY - this._container.y))
+        { 
+            this._draggingBlock = true; 
+            this._dragOffsetX = this._mouseTrackingPiece.x - (input.pointerX - this._container.x);
+            this._dragOffsetY = this._mouseTrackingPiece.y - (input.pointerY - this._container.y);
         }
 
-        if (input.pointerJustDown) { this._draggingBlock = true; }
-
         if (this._draggingBlock) {
-            this._mouseTrackingPiece.x = input.pointerX - this._container.x;
-            this._mouseTrackingPiece.y = input.pointerY - this._container.y;
+            let fingerOffset = this._addFingerOffset ? 225 : 0;
+            this._mouseTrackingPiece.x = input.pointerX - this._container.x + this._dragOffsetX;
+            this._mouseTrackingPiece.y = input.pointerY - this._container.y + this._dragOffsetY - fingerOffset;
 
             for (let i = 0; i < 3; ++i) {
                 for (let j = 0; j < 3; ++j) {
@@ -117,8 +122,8 @@ export class Grid {
                 let gridCopy = [];
                 gridCopy.length = CellProps.CELL_DIM * CellProps.CELL_DIM;
 
-                let cellRow = Math.floor((input.pointerY - this._container.y) / CellProps.CELL_SIZE);
-                let cellCol = Math.floor((input.pointerX - this._container.x) / CellProps.CELL_SIZE);
+                let cellRow = Math.floor(this._mouseTrackingPiece.y / CellProps.CELL_SIZE);
+                let cellCol = Math.floor(this._mouseTrackingPiece.x / CellProps.CELL_SIZE);
                 let doesntFit = false;
                 for (let i = -2; i <= 2; ++i) {
                     for (let j = -2; j <= 2; ++j) {
@@ -162,6 +167,7 @@ export class Grid {
                     }
                     this._mouseTrackingPiece.copyShapeAndTintIntoBlock(this._ghostBlock);
                 }
+                this.onBlockDropped();
                 if (gridChanged) {
                     let gridCopy = [];
                     gridCopy.length = CellProps.CELL_DIM * CellProps.CELL_DIM;
@@ -178,6 +184,7 @@ export class Grid {
                             for (let j = 0; j < CellProps.CELL_DIM; ++j) {
                                 gridCopy[i * CellProps.CELL_DIM + j] = true;
                             }
+                            lineMulitplier += 1;
                         }
                     }
                     for (let j = 0; j < CellProps.CELL_DIM; ++j) {
@@ -193,6 +200,7 @@ export class Grid {
                             for (let i = 0; i < CellProps.CELL_DIM; ++i) {
                                 gridCopy[i * CellProps.CELL_DIM + j] = true;
                             }
+                            lineMulitplier += 1;
                         }
                     }
                     for (let i = 0; i < CellProps.CELL_DIM; ++i) {
@@ -200,7 +208,8 @@ export class Grid {
                             if (gridCopy[i * CellProps.CELL_DIM + j]) {
                                 let cell = this._grid[i * CellProps.CELL_DIM + j];
                                 cell.filled = false;
-                                cell.tint = 0xffffff;
+                                cell.tint = 0x999999;
+                                scoreEarned += 1;
                             }
                         }
                     }
@@ -208,15 +217,31 @@ export class Grid {
             }
         }
         else {
-            this._mouseTrackingPiece.x = 300;
-            this._mouseTrackingPiece.y = 750;
-            this._ghostBlock.x = this._mouseTrackingPiece.x;
-            this._ghostBlock.y = this._mouseTrackingPiece.y;
+            this.onBlockDropped();
+        }
 
-            for (let i = 0; i < 8; ++i) {
-                let mirrorBlock = this._mirrorBlocks[i];
-                mirrorBlock.alpha = 0;
+        for (let i = 0; i < CellProps.CELL_DIM; ++i) {
+            for (let j = 0; j < CellProps.CELL_DIM; ++j) {
+                let cellSprite = this._cellSprites[i * CellProps.CELL_DIM + j];
+                cellSprite.x = j * CellProps.CELL_SIZE;
+                cellSprite.y = i * CellProps.CELL_SIZE;
+
+                let cell = this._grid[i * CellProps.CELL_DIM + j];
+                cellSprite.tint = cell.tint;
             }
+        }
+        return scoreEarned * lineMulitplier;
+    }
+
+    private onBlockDropped (): void {
+        this._mouseTrackingPiece.x = CellProps.CELL_SIZE * CellProps.CELL_DIM * 0.5;
+        this._mouseTrackingPiece.y = 900;
+        this._ghostBlock.x = this._mouseTrackingPiece.x;
+        this._ghostBlock.y = this._mouseTrackingPiece.y;
+
+        for (let i = 0; i < 8; ++i) {
+            let mirrorBlock = this._mirrorBlocks[i];
+            mirrorBlock.alpha = 0;
         }
     }
 }
