@@ -3,6 +3,7 @@ import FontFaceObserver from "FontFaceObserver";
 import MobileDetect from "mobile-detect";
 
 import {Grid} from "./Grid";
+import {SimpleButton} from "./SimpleButton";
 import {Input} from "./Input";
 
 export class Game {
@@ -32,8 +33,13 @@ export class Game {
     private _nativeHeight: number = 1280;
 
     private _grid: Grid;
+    private _scrim: PIXI.Graphics;
     private _scoreText: PIXI.Text;
     private _score: number = 0;
+
+    private _tryAgainButton: SimpleButton;
+    private _noMoreMovesText: PIXI.Text;
+    private _gameOver = false;
 
     public constructor () {
         this._resizeDelayTween = new TWEEN.Tween(this)
@@ -89,7 +95,7 @@ export class Game {
         this._stage.addChild(this._wholeGameContainer);
 
         this._loadingText = new PIXI.Text("Loading...", {
-            fontFamily: "sans-serif",
+            fontFamily: "LabelFont",
             fontSize: 60,
             fill: 0xffffff
         });
@@ -159,13 +165,14 @@ export class Game {
         this._input.pointerX /= this._wholeGameContainer.scale.x;
         this._input.pointerY -= this._wholeGameContainer.y;
         this._input.pointerY /= this._wholeGameContainer.scale.y;
-        console.log(this._input.pointerX, this._input.pointerY);
     }
 
     private loadAssets (): Promise<any> {
         return new Promise<any>(function (resolve, reject) {
+            this._textures = {};
             Promise.all([
-                this.loadTextures(),
+                this.loadButtonTexture(),
+                this.loadTextureAtlas(),
                 this.loadFonts()
             ]).then(
                 function () {
@@ -178,19 +185,40 @@ export class Game {
         }.bind(this));
     }
 
-    private loadTextures (): Promise<any> {
+    // TODO(ebuchholz): put button texture into atlas
+    private loadButtonTexture (): Promise<any> {
         return new Promise<any>(function (resolve, reject) {
             let onLoaded = function (loader: any, resources: any) {
-                this._textures = resources["atlas"].textures;
+                this._textures["button"] = resources["button"].texture;
                 resolve();
             };
             let onError = function (error) {
                 reject(error);
             };
-            PIXI.loader.add("atlas", this._resourcePath + "assets/images/atlas.json");
-            PIXI.loader.once("complete", onLoaded, this);
-            PIXI.loader.on("error", onError, this);
-            PIXI.loader.load();
+            let loader = new PIXI.loaders.Loader();
+            loader.add("button", this._resourcePath + "assets/images/button.png");
+            loader.once("complete", onLoaded, this);
+            loader.on("error", onError, this);
+            loader.load();
+        }.bind(this));
+    }
+
+    private loadTextureAtlas (): Promise<any> {
+        return new Promise<any>(function (resolve, reject) {
+            let onLoaded = function (loader: any, resources: any) {
+                for (let key in resources["atlas"].textures) {
+                    this._textures[key] = resources["atlas"].textures[key];
+                }
+                resolve();
+            };
+            let onError = function (error) {
+                reject(error);
+            };
+            let loader = new PIXI.loaders.Loader();
+            loader.add("atlas", this._resourcePath + "assets/images/atlas.json");
+            loader.once("complete", onLoaded, this);
+            loader.on("error", onError, this);
+            loader.load();
         }.bind(this));
     }
 
@@ -219,9 +247,8 @@ export class Game {
     private startGame (): void {
         this._wholeGameContainer.removeChild(this._loadingText);
 
-        let addFingerOffset = this._mobileInputs;
         this._scoreText = new PIXI.Text("0", {
-            fontFamily: "sans-serif",
+            fontFamily: "LabelFont",
             fontSize: 84,
             fill: 0xffffff
         });
@@ -229,9 +256,38 @@ export class Game {
         this._scoreText.x = this._nativeWidth / 2;
         this._scoreText.y = 70;
         this._wholeGameContainer.addChild(this._scoreText);
+
+        let addFingerOffset = this._mobileInputs;
         this._grid = new Grid(this._wholeGameContainer, this._textures, 
                               this._nativeWidth, this._nativeHeight, addFingerOffset);
         this._doneLoading = true;
+
+        this._scrim = new PIXI.Graphics();
+        this._scrim.beginFill(0x000000);
+        this._scrim.drawRect(-this._nativeWidth * 0.05, -this._nativeHeight*0.05, 
+                             this._nativeWidth*1.1, this._nativeHeight*1.1);
+        this._scrim.endFill();
+        this._wholeGameContainer.addChild(this._scrim);
+        this._scrim.alpha = 0.7;
+        this._scrim.visible = false;
+
+        this._noMoreMovesText = new PIXI.Text("No More\nMoves", {
+            align: "center",
+            fontFamily: "LabelFont",
+            fontSize: 84,
+            fill: 0xffffff
+        });
+        this._noMoreMovesText.anchor.set(0.5, 0.5);
+        this._noMoreMovesText.x = this._nativeWidth / 2;
+        this._noMoreMovesText.y = 300;
+        this._noMoreMovesText.visible = false;
+        this._wholeGameContainer.addChild(this._noMoreMovesText);
+
+        this._tryAgainButton = new SimpleButton(this._wholeGameContainer, this._textures["button"]);
+        this._tryAgainButton.setText("Play Again");
+        this._tryAgainButton.x = this._nativeWidth / 2;
+        this._tryAgainButton.y = 600;
+        this._tryAgainButton.visible = false;
     }
 
     private queueResize () {
@@ -288,9 +344,30 @@ export class Game {
         requestAnimationFrame(() => { this.update(); });
 
         if (this._doneLoading) {
-            this._score += this._grid.update(this._input);
-            this._scoreText.text = this._score.toString();
-
+            if (!this._gameOver) {
+                let gridUpdateResult = this._grid.update(this._input); 
+                if (gridUpdateResult.pointsEarned != 0) {
+                    this._score += gridUpdateResult.pointsEarned;
+                    this._scoreText.text = this._score.toString();
+                }
+                if (gridUpdateResult.noMoreMoves) {
+                    this._tryAgainButton.visible = true;
+                    this._gameOver = true;
+                    this._scrim.visible = true;
+                    this._noMoreMovesText.visible = true;
+                }
+            }
+            else {
+                if (this._tryAgainButton.update(this._input)) {
+                    this._grid.reset();
+                    this._score = 0;
+                    this._scoreText.text = this._score.toString();
+                    this._gameOver = false;
+                    this._scrim.visible = false;
+                    this._tryAgainButton.visible = false;
+                    this._noMoreMovesText.visible = false;
+                }
+            }
         }
         this._input.pointerJustDown = false;
         

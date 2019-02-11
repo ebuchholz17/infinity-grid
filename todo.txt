@@ -1,0 +1,11 @@
+X Check for no moves possible
+- Shuffle pieces like in tetris
+- match piece shapes to real 10x10
+- cool background
+
+
+- Title Screen
+- High Score
+- Replay
+- Sound Effects
+

@@ -18,6 +18,12 @@ export class Block {
     public get alpha (): number { return this._container.alpha; }
     public set alpha (value: number) { this._container.alpha = value; }
 
+    public get visible (): boolean { return this._container.visible; }
+    public set visible (value: boolean) { this._container.visible = value; }
+
+    public get scale (): PIXI.Point | PIXI.ObservablePoint { return this._container.scale; }
+    public set scale (value: PIXI.Point | PIXI.ObservablePoint) { this._container.scale = value; }
+
     public constructor (parentContainer: PIXI.Container, textures: any, mask?: PIXI.Graphics) {
         this._container = new PIXI.Container();
         parentContainer.addChild(this._container);
@@ -218,10 +224,10 @@ export class Block {
     }
 
     public intersectsBoundingBox (x: number, y: number): boolean {
-        let minX = this._container.x - CellProps.CELL_SIZE * 2.5;
-        let maxX = this._container.x + CellProps.CELL_SIZE * 2.5;
-        let minY = this._container.y - CellProps.CELL_SIZE * 2.5;
-        let maxY = this._container.y + CellProps.CELL_SIZE * 2.5;
+        let minX = this._container.x - CellProps.CELL_SIZE * 1.65;
+        let maxX = this._container.x + CellProps.CELL_SIZE * 1.65;
+        let minY = this._container.y - CellProps.CELL_SIZE * 1.65;
+        let maxY = this._container.y + CellProps.CELL_SIZE * 1.65;
 
         if (x >= minX && x < maxX && y >= minY && y < maxY) {
             return true;
