@@ -240,24 +240,7 @@ export class Grid {
                         }
                     }
                     if (!allBlocksUsed) {
-                        gridCopy = [];
-                        gridCopy.length = CellProps.CELL_DIM * CellProps.CELL_DIM;
-                        let blockCanFit = false;
-                        for (let blockIndex = 0; blockIndex < this._selectableBlocks.length; ++blockIndex) {
-                            if (this._selectableBlockUsed[blockIndex]) { continue; }
-
-                            let selectableBlock = this._selectableBlocks[blockIndex];
-                            for (let i = 0; i < CellProps.CELL_DIM; ++i) { 
-                                for (let j = 0; j < CellProps.CELL_DIM; ++j) { 
-                                    if (this.blockFitsAtRowCol(selectableBlock, i, j, gridCopy)) {
-                                        blockCanFit = true;
-                                        break;
-                                    }
-                                }
-                                if (blockCanFit) { break; }
-                            }
-                        }
-                        if (!blockCanFit) {
+                        if (this.noBlocksCanFit()) {
                             result.noMoreMoves = true;
                         }
                     }
@@ -283,6 +266,9 @@ export class Grid {
                     selectableBlock.randomizeTint();
                     selectableBlock.changeShape();
                 }
+                if (this.noBlocksCanFit()) {
+                    result.noMoreMoves = true;
+                }
             }
         }
 
@@ -306,6 +292,27 @@ export class Grid {
         }
         result.pointsEarned *= lineMulitplier;
         return result;
+    }
+
+    private noBlocksCanFit (): boolean {
+        let gridCopy = [];
+        gridCopy.length = CellProps.CELL_DIM * CellProps.CELL_DIM;
+        let blockCanFit = false;
+        for (let blockIndex = 0; blockIndex < this._selectableBlocks.length; ++blockIndex) {
+            if (this._selectableBlockUsed[blockIndex]) { continue; }
+
+            let selectableBlock = this._selectableBlocks[blockIndex];
+            for (let i = 0; i < CellProps.CELL_DIM; ++i) { 
+                for (let j = 0; j < CellProps.CELL_DIM; ++j) { 
+                    if (this.blockFitsAtRowCol(selectableBlock, i, j, gridCopy)) {
+                        blockCanFit = true;
+                        break;
+                    }
+                }
+                if (blockCanFit) { break; }
+            }
+        }
+        return !blockCanFit;
     }
 
     private blockFitsAtRowCol (block: Block, row: number, col: number, 
